@@ -10,18 +10,22 @@ def setup_logging() -> None:
         "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d | %(message)s"
     )
 
-    log_dir = Path("logs")
-    log_dir.mkdir(parents=True, exist_ok=True)
+    handlers = [logging.StreamHandler(sys.stdout)]
+    try:
+        log_dir = Path("logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handlers.append(
+            logging.FileHandler(
+                log_dir / f"{settings.APP_NAME.lower().replace(' ', '_')}.log"
+            )
+        )
+    except OSError:
+        pass
 
     logging.basicConfig(
         level=getattr(logging, settings.LOG_LEVEL.value.upper(), logging.INFO),
         format=log_format,
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(
-                log_dir / f"{settings.APP_NAME.lower().replace(' ', '_')}.log"
-            ),
-        ],
+        handlers=handlers,
     )
 
     # Disable noisy loggers
