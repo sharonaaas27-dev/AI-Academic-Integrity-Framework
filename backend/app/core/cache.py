@@ -1,15 +1,22 @@
 from typing import Optional, Any, Set
 import json
 from datetime import timedelta
+import logging
 
-import redis.asyncio as aioredis
+try:
+    import redis.asyncio as aioredis
+    HAS_REDIS = True
+except ImportError:
+    aioredis = None
+    HAS_REDIS = False
+    logging.getLogger(__name__).warning("redis not installed, cache disabled")
 
 from .config import settings
 
 
 class RedisCache:
     _instance: Optional["RedisCache"] = None
-    _client: Optional[aioredis.Redis] = None
+    _client: Optional[Any] = None
 
     def __new__(cls) -> "RedisCache":
         if cls._instance is None:
@@ -17,6 +24,8 @@ class RedisCache:
         return cls._instance
 
     async def connect(self) -> None:
+        if not HAS_REDIS:
+            return
         if self._client is None:
             try:
                 client = aioredis.from_url(
