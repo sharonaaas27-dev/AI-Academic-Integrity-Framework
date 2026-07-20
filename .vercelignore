@@ -1,0 +1,12 @@
+.venv
+venv
+backend/.venv
+backend/venv
+backend/logs
+backend/alembic/versions
+*.db
+*.sqlite
+logs
+node_modules
+.next
+.vercel

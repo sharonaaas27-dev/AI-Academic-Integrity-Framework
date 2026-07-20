@@ -1,0 +1,146 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-07-10T00:00:00Z",
+  "rules": [
+    {
+      "id": "rule_paste_detected",
+      "name": "Paste Detected",
+      "description": "Student used paste during exam",
+      "condition": {
+        "field": "paste_count",
+        "operator": "gt",
+        "value": 0
+      },
+      "score_increment": 30,
+      "category": "clipboard",
+      "priority": 10,
+      "is_active": true
+    },
+    {
+      "id": "rule_copy_detected",
+      "name": "Copy Detected",
+      "description": "Student used copy during exam",
+      "condition": {
+        "field": "copy_count",
+        "operator": "gt",
+        "value": 0
+      },
+      "score_increment": 20,
+      "category": "clipboard",
+      "priority": 9,
+      "is_active": true
+    },
+    {
+      "id": "rule_excessive_focus_switches",
+      "name": "Excessive Focus Switches",
+      "description": "Student switched focus more than 5 times",
+      "condition": {
+        "field": "focus_switch_count",
+        "operator": "gt",
+        "value": 5
+      },
+      "score_increment": 20,
+      "category": "focus",
+      "priority": 8,
+      "is_active": true
+    },
+    {
+      "id": "rule_devtools_opened",
+      "name": "Developer Tools Opened",
+      "description": "Student opened browser developer tools",
+      "condition": {
+        "field": "devtool_attempt_count",
+        "operator": "gt",
+        "value": 0
+      },
+      "score_increment": 40,
+      "category": "devtools",
+      "priority": 10,
+      "is_active": true
+    },
+    {
+      "id": "rule_multiple_fullscreen_exits",
+      "name": "Multiple Fullscreen Exits",
+      "description": "Student exited fullscreen mode 3+ times",
+      "condition": {
+        "field": "fullscreen_exit_count",
+        "operator": "gte",
+        "value": 3
+      },
+      "score_increment": 25,
+      "category": "fullscreen",
+      "priority": 7,
+      "is_active": true
+    },
+    {
+      "id": "rule_high_idle_ratio",
+      "name": "High Idle Ratio",
+      "description": "Student was idle for more than 30% of exam time",
+      "condition": {
+        "field": "idle_ratio",
+        "operator": "gt",
+        "value": 0.3
+      },
+      "score_increment": 15,
+      "category": "idle",
+      "priority": 5,
+      "is_active": true
+    },
+    {
+      "id": "rule_frequent_question_switching",
+      "name": "Frequent Question Switching",
+      "description": "Student switched questions more than 10 times",
+      "condition": {
+        "field": "question_switch_frequency",
+        "operator": "gt",
+        "value": 10
+      },
+      "score_increment": 10,
+      "category": "navigation",
+      "priority": 4,
+      "is_active": true
+    },
+    {
+      "id": "rule_excessive_answer_edits",
+      "name": "Excessive Answer Edits",
+      "description": "Student edited answers more than 5 times",
+      "condition": {
+        "field": "answer_edit_count",
+        "operator": "gt",
+        "value": 5
+      },
+      "score_increment": 10,
+      "category": "answers",
+      "priority": 4,
+      "is_active": true
+    },
+    {
+      "id": "rule_network_instability",
+      "name": "Network Instability",
+      "description": "Student experienced multiple network disconnects",
+      "condition": {
+        "field": "network_disconnect_count",
+        "operator": "gt",
+        "value": 3
+      },
+      "score_increment": 15,
+      "category": "network",
+      "priority": 6,
+      "is_active": true
+    },
+    {
+      "id": "rule_missing_heartbeats",
+      "name": "Missing Heartbeats",
+      "description": "Student missed more than 20% of heartbeats",
+      "condition": {
+        "field": "heartbeat_miss_ratio",
+        "operator": "gt",
+        "value": 0.2
+      },
+      "score_increment": 20,
+      "category": "connection",
+      "priority": 7,
+      "is_active": true
+    }
+  ]
+}

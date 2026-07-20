@@ -1,0 +1,11 @@
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.git
+*.md
+logs/
+ml/models/
+dev.db
+.DS_Store

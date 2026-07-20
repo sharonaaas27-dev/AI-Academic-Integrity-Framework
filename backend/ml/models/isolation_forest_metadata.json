@@ -1,0 +1,70 @@
+{
+  "name": "isolation_forest",
+  "version": "1.0.0",
+  "type": "isolation_forest",
+  "path": "ml\\models\\isolation_forest.pkl",
+  "metrics": {
+    "auc": 0.9986,
+    "precision": 1.0,
+    "recall": 0.2423,
+    "f1": 0.3901,
+    "confusion_matrix": [
+      [
+        400,
+        0
+      ],
+      [
+        197,
+        63
+      ]
+    ],
+    "classification_report": {
+      "0": {
+        "precision": 0.6700167504187605,
+        "recall": 1.0,
+        "f1-score": 0.802407221664995,
+        "support": 400.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 0.2423076923076923,
+        "f1-score": 0.39009287925696595,
+        "support": 260.0
+      },
+      "accuracy": 0.7015151515151515,
+      "macro avg": {
+        "precision": 0.8350083752093802,
+        "recall": 0.6211538461538462,
+        "f1-score": 0.5962500504609805,
+        "support": 660.0
+      },
+      "weighted avg": {
+        "precision": 0.8000101517689459,
+        "recall": 0.7015151515151515,
+        "f1-score": 0.6399803595042562,
+        "support": 660.0
+      }
+    }
+  },
+  "feature_columns": [
+    "focus_switch_count",
+    "avg_focus_loss_duration",
+    "mouse_entropy",
+    "mouse_velocity_mean",
+    "mouse_velocity_std",
+    "mouse_acceleration_mean",
+    "typing_interval_mean",
+    "typing_interval_std",
+    "copy_count",
+    "paste_count",
+    "question_switch_frequency",
+    "answer_edit_count",
+    "fullscreen_exit_count",
+    "devtool_attempt_count",
+    "idle_ratio",
+    "network_disconnect_count",
+    "heartbeat_miss_ratio",
+    "answer_revisit_count",
+    "keyboard_rhythm_std"
+  ]
+}

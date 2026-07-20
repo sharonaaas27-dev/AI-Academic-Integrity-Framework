@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# ML Models
+backend/ml/models/*.pkl
+backend/ml/models/*.joblib
+backend/ml/models/*.onnx
+
+# Database
+*.db
+*.sqlite
+
+# Docker
+.docker/
+
+# MinIO data
+infrastructure/minio/data/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Uploads
+uploads/
+media/
+
+# Temporary
+tmp/
+temp/
+
+.vercel

@@ -1,0 +1,70 @@
+{
+  "name": "random_forest",
+  "version": "1.0.0",
+  "type": "random_forest",
+  "path": "ml\\models\\random_forest.pkl",
+  "metrics": {
+    "auc": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "confusion_matrix": [
+      [
+        400,
+        0
+      ],
+      [
+        0,
+        260
+      ]
+    ],
+    "classification_report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 400.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 260.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 660.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 660.0
+      }
+    }
+  },
+  "feature_columns": [
+    "focus_switch_count",
+    "avg_focus_loss_duration",
+    "mouse_entropy",
+    "mouse_velocity_mean",
+    "mouse_velocity_std",
+    "mouse_acceleration_mean",
+    "typing_interval_mean",
+    "typing_interval_std",
+    "copy_count",
+    "paste_count",
+    "question_switch_frequency",
+    "answer_edit_count",
+    "fullscreen_exit_count",
+    "devtool_attempt_count",
+    "idle_ratio",
+    "network_disconnect_count",
+    "heartbeat_miss_ratio",
+    "answer_revisit_count",
+    "keyboard_rhythm_std"
+  ]
+}
