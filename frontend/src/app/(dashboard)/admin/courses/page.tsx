@@ -45,7 +45,7 @@ export default function AdminCoursesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-courses", page, institutionFilter],
-    queryFn: (): Promise<{ courses: any[]; total: number }> =>
+    queryFn: () =>
       api.get(
         `/api/v1/courses?page=${page}&per_page=20${institutionFilter ? `&institution_id=${institutionFilter}` : ""}`
       ),
@@ -54,7 +54,7 @@ export default function AdminCoursesPage() {
 
   const { data: institutions } = useQuery({
     queryKey: ["admin-institutions"],
-    queryFn: (): Promise<any[]> => api.get("/api/v1/admin/institutions"),
+    queryFn: () => api.get("/api/v1/admin/institutions"),
     enabled: authChecked,
   });
 
