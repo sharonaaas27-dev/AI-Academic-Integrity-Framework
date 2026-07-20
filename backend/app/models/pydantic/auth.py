@@ -76,7 +76,7 @@ class UserProfileResponse(BaseModel):
     first_name: str
     last_name: str
     role: UserRole
-    institution_id: UUID
+    institution_id: Optional[UUID] = None
     is_verified: bool = False
     phone: Optional[str] = None
     avatar_url: Optional[str] = None

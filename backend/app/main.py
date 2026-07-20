@@ -6,7 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from .core.config import settings
 from .core.logging import setup_logging
-from .core.database import init_db, close_db
+from .core.database import init_db, close_db, seed_demo_data
 from .core.cache import cache
 from .middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware, AuditMiddleware
 
@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
     try:
         await init_db()
+        await seed_demo_data()
     except Exception as e:
         logger.warning("Database not available, running without DB: %s", e)
     try:
