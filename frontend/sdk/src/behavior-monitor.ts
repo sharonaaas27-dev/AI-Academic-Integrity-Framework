@@ -64,7 +64,7 @@ export class BehaviorMonitor {
       debug: false,
       ...config,
     };
-    this.debug = this.config.debug;
+    this.debug = this.config.debug ?? false;
   }
 
   /**

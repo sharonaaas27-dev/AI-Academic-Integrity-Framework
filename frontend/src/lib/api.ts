@@ -47,7 +47,7 @@ function redirectToLogin() {
   }
 }
 
-async function request<T>(
+async function request<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -104,23 +104,23 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint),
-  post: <T>(endpoint: string, data?: any) =>
+  get: <T = any>(endpoint: string) => request<T>(endpoint),
+  post: <T = any>(endpoint: string, data?: any) =>
     request<T>(endpoint, {
       method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     }),
-  put: <T>(endpoint: string, data?: any) =>
+  put: <T = any>(endpoint: string, data?: any) =>
     request<T>(endpoint, {
       method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     }),
-  patch: <T>(endpoint: string, data?: any) =>
+  patch: <T = any>(endpoint: string, data?: any) =>
     request<T>(endpoint, {
       method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
     }),
-  delete: <T>(endpoint: string) =>
+  delete: <T = any>(endpoint: string) =>
     request<T>(endpoint, { method: "DELETE" }),
 };
 

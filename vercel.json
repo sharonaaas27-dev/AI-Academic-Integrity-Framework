@@ -6,13 +6,13 @@
     },
     "backend": {
       "root": "backend",
-      "entrypoint": "api/index.py"
-    }
-  },
-  "functions": {
-    "backend/api/**/*.py": {
-      "runtime": "python3.12",
-      "memory": 512
+      "entrypoint": "api/index.py",
+      "functions": {
+        "api/**/*.py": {
+          "runtime": "python3.12",
+          "memory": 512
+        }
+      }
     }
   },
   "rewrites": [

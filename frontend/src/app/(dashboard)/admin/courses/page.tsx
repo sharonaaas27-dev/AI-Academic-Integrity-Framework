@@ -45,7 +45,7 @@ export default function AdminCoursesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-courses", page, institutionFilter],
-    queryFn: () =>
+    queryFn: (): Promise<{ courses: any[]; total: number }> =>
       api.get(
         `/api/v1/courses?page=${page}&per_page=20${institutionFilter ? `&institution_id=${institutionFilter}` : ""}`
       ),
@@ -54,11 +54,11 @@ export default function AdminCoursesPage() {
 
   const { data: institutions } = useQuery({
     queryKey: ["admin-institutions"],
-    queryFn: () => api.get("/api/v1/admin/institutions"),
+    queryFn: (): Promise<any[]> => api.get("/api/v1/admin/institutions"),
     enabled: authChecked,
   });
 
-  const filtered = data?.courses?.filter((c: any) =>
+  const filtered = (data?.courses ?? []).filter((c: any) =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.code.toLowerCase().includes(search.toLowerCase())
   );
 
