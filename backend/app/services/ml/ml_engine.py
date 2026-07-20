@@ -15,8 +15,14 @@ import pickle
 import json
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
+try:
+    import numpy as np
+    import pandas as pd
+    HAS_NUMPY = True
+except ImportError:
+    np = None
+    pd = None
+    HAS_NUMPY = False
 
 from ...core.config import settings
 from ...domain.value_objects.risk_score import PredictionResult
@@ -47,16 +53,16 @@ class BaseMLModel(ABC):
         pass
 
     @abstractmethod
-    async def predict(self, features: np.ndarray) -> np.ndarray:
+    async def predict(self, features: Any) -> Any:
         """Run prediction. Returns anomaly scores or probabilities."""
         pass
 
     @abstractmethod
-    async def predict_proba(self, features: np.ndarray) -> np.ndarray:
+    async def predict_proba(self, features: Any) -> Any:
         """Return probability estimates."""
         pass
 
-    def preprocess(self, features: dict[str, float] | np.ndarray) -> np.ndarray:
+    def preprocess(self, features: dict[str, float] | Any) -> Any:
         if isinstance(features, dict):
             if self.metadata.feature_columns:
                 return np.array([[
@@ -87,17 +93,14 @@ class IsolationForestModel(BaseMLModel):
             )
             logger.warning("No model file found, using default IsolationForest")
 
-    async def predict(self, features: np.ndarray) -> np.ndarray:
+    async def predict(self, features: Any) -> Any:
         features = self.preprocess(features)
-        # IsolationForest returns -1 for anomalies, 1 for normal
         scores = self.model.score_samples(features)
-        # Normalize to 0-1 range (more negative = more anomalous)
         return -scores
 
-    async def predict_proba(self, features: np.ndarray) -> np.ndarray:
+    async def predict_proba(self, features: Any) -> Any:
         features = self.preprocess(features)
         scores = self.model.score_samples(features)
-        # Convert to probability-like score
         probas = 1 / (1 + np.exp(-(-scores)))
         return np.column_stack([1 - probas, probas])
 
@@ -117,11 +120,11 @@ class RandomForestModel(BaseMLModel):
             )
             logger.warning("No model file found, using default RandomForest")
 
-    async def predict(self, features: np.ndarray) -> np.ndarray:
+    async def predict(self, features: Any) -> Any:
         features = self.preprocess(features)
         return self.model.predict(features)
 
-    async def predict_proba(self, features: np.ndarray) -> np.ndarray:
+    async def predict_proba(self, features: Any) -> Any:
         features = self.preprocess(features)
         return self.model.predict_proba(features)
 
@@ -151,11 +154,11 @@ class XGBoostModel(BaseMLModel):
             )
             logger.warning("No model file found, using default XGBoost")
 
-    async def predict(self, features: np.ndarray) -> np.ndarray:
+    async def predict(self, features: Any) -> Any:
         features = self.preprocess(features)
         return self.model.predict(features)
 
-    async def predict_proba(self, features: np.ndarray) -> np.ndarray:
+    async def predict_proba(self, features: Any) -> Any:
         features = self.preprocess(features)
         return self.model.predict_proba(features)
 
@@ -182,14 +185,14 @@ class EnsembleModel(BaseMLModel):
         for model in self.models:
             await model.load()
 
-    async def predict(self, features: np.ndarray) -> np.ndarray:
+    async def predict(self, features: Any) -> Any:
         predictions = []
         for model in self.models:
             pred = await model.predict(features)
             predictions.append(pred)
         return np.mean(predictions, axis=0)
 
-    async def predict_proba(self, features: np.ndarray) -> np.ndarray:
+    async def predict_proba(self, features: Any) -> Any:
         probas = []
         for model in self.models:
             proba = await model.predict_proba(features)

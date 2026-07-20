@@ -16,10 +16,16 @@ Where:
 """
 
 import logging
-import numpy as np
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 from datetime import datetime
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    np = None
+    HAS_NUMPY = False
 
 from ...core.config import settings
 from ...domain.value_objects.risk_score import (
@@ -133,6 +139,8 @@ class RiskEngine:
 
     async def _predict_ml(self, features: dict[str, float]) -> Optional[PredictionResult]:
         """Get ML prediction for the features."""
+        if not HAS_NUMPY:
+            return None
         try:
             model = await model_registry.get("ensemble_default")
             if not model:
