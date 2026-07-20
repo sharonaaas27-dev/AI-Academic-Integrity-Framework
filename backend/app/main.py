@@ -76,7 +76,7 @@ app.add_middleware(AuditMiddleware)
 if settings.ENVIRONMENT.value == "production":
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=[".*"],
+        allowed_hosts=["*"],
     )
 
 
