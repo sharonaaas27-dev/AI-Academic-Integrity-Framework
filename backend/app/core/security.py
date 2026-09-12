@@ -3,8 +3,43 @@ from typing import Optional, Any
 from uuid import UUID
 
 import bcrypt
+from fastapi import Response
 from jose import JWTError, jwt
 from .config import settings
+
+
+ACCESS_COOKIE = "access_token"
+REFRESH_COOKIE = "refresh_token"
+
+
+def _cookie_flags() -> dict[str, Any]:
+    # Secure only in production (plain http locally); Lax blocks
+    # third-party sending while keeping same-origin + top-level flows.
+    return {
+        "httponly": True,
+        "secure": settings.ENVIRONMENT.value == "production",
+        "samesite": "lax",
+        "path": "/",
+    }
+
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    """Mirror JWTs into HttpOnly cookies (XSS-safe primary for browsers)."""
+    flags = _cookie_flags()
+    response.set_cookie(
+        ACCESS_COOKIE, access_token,
+        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60, **flags,
+    )
+    response.set_cookie(
+        REFRESH_COOKIE, refresh_token,
+        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400, **flags,
+    )
+
+
+def clear_auth_cookies(response: Response) -> None:
+    flags = _cookie_flags()
+    response.delete_cookie(ACCESS_COOKIE, path="/", samesite=flags["samesite"])
+    response.delete_cookie(REFRESH_COOKIE, path="/", samesite=flags["samesite"])
 
 
 def hash_password(password: str) -> str:

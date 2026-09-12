@@ -1,6 +1,6 @@
-import asyncio
 import logging
 import uuid
+from typing import Any, Optional
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
@@ -17,6 +17,10 @@ from ....models.sqlalchemy.behavior import RawBehaviorEvent
 from ....models.sqlalchemy.exam import ExamEnrollment
 from ....models.sqlalchemy.risk import RiskReport
 from ....services.behavior.event_handler import BehaviorEventHandler
+from ....services.jobs.job_queue import RiskRecalcJob, risk_job_queue
+from ....services.realtime.broadcaster import broadcast_alert
+from ....services.risk.reporting import enrich_top_features, calibration_sample_kwargs, save_calibration_sample
+from ....domain.enums import SUSPICIOUS_EVENT_TYPES
 from ....services.risk.risk_engine import risk_engine
 from ....services.feature_engineering.feature_engine import feature_engine
 from ....services.explainable_ai.explainer import explainer
@@ -75,13 +79,28 @@ async def submit_behavior_events(
             domain_batch.exam_id, domain_batch.student_id,
         )
 
-        # Trigger background risk recalculation
-        asyncio.create_task(
-            _recalculate_risk_background(
-                exam_id=domain_batch.exam_id,
-                student_id=domain_batch.student_id,
-            )
+        # Queue background risk recalculation (bounded, coalesced).
+        # Never blocks the response; drops are counted + logged in the queue.
+        await risk_job_queue.enqueue(
+            exam_id=domain_batch.exam_id,
+            student_id=domain_batch.student_id,
         )
+
+        # Live-push suspicious events to subscribed teachers (best-effort;
+        # polling remains the fallback, so failures are only logged).
+        try:
+            for e in domain_batch.events:
+                if (e.event_type or "") in SUSPICIOUS_EVENT_TYPES:
+                    await broadcast_alert(
+                        exam_id=domain_batch.exam_id,
+                        student_id=domain_batch.student_id,
+                        student_name="",
+                        event_type=e.event_type or "unknown",
+                        timestamp_ms=float(e.timestamp or 0.0),
+                    )
+                    break  # one push per batch; teachers re-fetch the feed
+        except Exception:
+            logger.warning("Alert broadcast failed for %s/%s", domain_batch.exam_id, domain_batch.student_id)
 
         return {
             "status": "accepted",
@@ -99,15 +118,20 @@ async def submit_behavior_events(
         )
 
 
-async def _recalculate_risk_background(exam_id: str, student_id: str):
-    """Recalculate risk score for a student in an exam after new events arrive."""
+async def handle_risk_recalc_job(job: RiskRecalcJob) -> Optional[dict[str, Any]]:
+    """Queue worker handler: recalculate risk for one student in one exam.
+
+    Returns the saved report summary (for post-save hooks such as realtime
+    push), or None when no report was produced.
+    """
+    exam_id, student_id = job.exam_id, job.student_id
     try:
         try:
             exam_uuid = UUID(exam_id)
             student_uuid = UUID(student_id)
         except (ValueError, TypeError, AttributeError):
             logger.warning("Skipping risk recalc: invalid UUIDs %s/%s", exam_id, student_id)
-            return
+            return None
         async with async_session_factory() as db:
             result = await db.execute(
                 select(ExamEnrollment)
@@ -120,7 +144,7 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
             enrollment = result.scalar_one_or_none()
             if not enrollment or not enrollment.exam:
                 logger.warning("Cannot recalculate risk: enrollment/exam not found for %s/%s", exam_id, student_id)
-                return
+                return None
 
             exam = enrollment.exam
 
@@ -135,7 +159,7 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
             raw_events = events_result.scalars().all()
 
             if not raw_events:
-                return
+                return None
 
             event_dicts = [
                 {
@@ -154,7 +178,7 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
                 )
             except Exception as e:
                 logger.error("Feature extraction failed for %s/%s: %s", exam_id, student_id, str(e), exc_info=True)
-                return
+                return None
 
             try:
                 risk_score = await risk_engine.calculate_risk(
@@ -166,14 +190,14 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
                 )
             except Exception as e:
                 logger.error("Risk calculation failed for %s/%s: %s", exam_id, student_id, str(e), exc_info=True)
-                return
+                return None
 
             try:
                 timeline = timeline_engine.build_timeline(event_dicts)
                 explanation = explainer.generate_explanation(risk_score, features, timeline)
             except Exception as e:
                 logger.error("Timeline/explanation failed for %s/%s: %s", exam_id, student_id, str(e), exc_info=True)
-                return
+                return None
 
             report = RiskReport(
                 exam_id=exam_uuid,
@@ -191,20 +215,41 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
                 ml_confidence=risk_score.confidence,
                 ml_probability=risk_score.prediction.probability if risk_score.prediction else None,
                 is_anomaly=risk_score.prediction.is_anomaly if risk_score.prediction else None,
-                top_features=risk_score.top_features,
+                top_features=await enrich_top_features(features, risk_score.top_features),
                 rule_triggers=risk_score.rule_triggers,
                 explanation=explanation["summary"],
             )
             db.add(report)
+            await db.flush()  # assign report.id for the calibration sample
+            await save_calibration_sample(db, calibration_sample_kwargs(
+                exam_id=exam_uuid,
+                institution_id=exam.institution_id,
+                report_id=report.id,
+                exam_difficulty=exam.difficulty_level or "medium",
+                features=features,
+                overall_score=risk_score.overall_score,
+                risk_level=risk_score.risk_level.value,
+                rule_score=risk_score.components.rule_score,
+                ml_score=risk_score.components.ml_score,
+                context_score=risk_score.components.context_score,
+            ))
             await db.commit()
 
             logger.info(
                 "Recalculated risk for exam=%s student=%s: score=%s level=%s",
                 exam_id, student_id, risk_score.overall_score, risk_score.risk_level.value,
             )
+            return {
+                "report_id": str(report.id),
+                "exam_id": str(exam_uuid),
+                "student_id": str(student_uuid),
+                "overall_score": risk_score.overall_score,
+                "risk_level": risk_score.risk_level.value,
+            }
 
     except Exception as e:
         logger.error("Failed to recalculate risk for %s/%s: %s", exam_id, student_id, str(e), exc_info=True)
+        raise
 
 
 @router.websocket("/ws/{exam_id}/{student_id}/{session_id}")

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..core.database import get_db
-from ..core.security import verify_token
+from ..core.security import verify_token, ACCESS_COOKIE
 from ..models.sqlalchemy.user import User
 from ..domain.enums import UserRole
 
@@ -15,17 +15,19 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
     authorization: Optional[str] = Header(None),
 ) -> User:
-    if not authorization:
+    # Header-first (non-browser clients + localStorage fallback),
+    # HttpOnly cookie second (browsers, XSS-safe primary).
+    token: Optional[str] = None
+    if authorization:
+        scheme, _, tok = authorization.partition(" ")
+        if scheme.lower() == "bearer" and tok:
+            token = tok
+    if token is None:
+        token = request.cookies.get(ACCESS_COOKIE)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization header",
-        )
-
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization scheme",
         )
 
     payload = verify_token(token, expected_type="access")

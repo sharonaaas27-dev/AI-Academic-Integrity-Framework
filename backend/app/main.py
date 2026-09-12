@@ -42,7 +42,21 @@ async def lifespan(app: FastAPI):
         logger.info("ML models loaded successfully")
     except Exception as e:
         logger.warning("ML models not available, falling back to rule-based only: %s", e)
+    try:
+        from .services.jobs.job_queue import risk_job_queue
+        from .api.v1.behavior.router import handle_risk_recalc_job
+        from .services.realtime.broadcaster import broadcast_risk_update
+        risk_job_queue.set_handler(handle_risk_recalc_job)
+        risk_job_queue.add_post_save_hook(broadcast_risk_update)
+        await risk_job_queue.start()
+    except Exception as e:
+        logger.warning("Risk job queue not available: %s", e)
     yield
+    try:
+        from .services.jobs.job_queue import risk_job_queue as _jq
+        await _jq.stop()
+    except Exception:
+        pass
     try:
         await cache.disconnect()
     except Exception:

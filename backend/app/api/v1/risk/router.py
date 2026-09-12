@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from typing import Optional
 from uuid import UUID
 
@@ -8,11 +8,12 @@ from ....core.database import get_db
 from ....api.deps import get_current_user, require_role
 from ....domain.enums import UserRole, RiskLevel
 from ....domain.value_objects.risk_score import RiskScore
-from ....models.sqlalchemy.risk import RiskReport
+from ....models.sqlalchemy.risk import RiskReport, RiskCalibrationSample
 from ....models.sqlalchemy.exam import ExamEnrollment
 from ....models.sqlalchemy.user import User
 from ....models.sqlalchemy.behavior import RawBehaviorEvent, ProcessedFeature
 from ....services.risk.risk_engine import risk_engine
+from ....services.risk.reporting import enrich_top_features, calibration_sample_kwargs, save_calibration_sample
 from ....services.feature_engineering.feature_engine import feature_engine
 from ....services.explainable_ai.explainer import explainer
 from ....services.timeline.timeline_engine import timeline_engine
@@ -130,6 +131,7 @@ async def calculate_risk_score(
     explanation = explainer.generate_explanation(risk_score, features, timeline)
 
     # Store report
+    exam_difficulty = enrollment.exam.difficulty_level if enrollment.exam else "medium"
     report = RiskReport(
         exam_id=exam_id,
         student_id=student_id,
@@ -146,11 +148,24 @@ async def calculate_risk_score(
         ml_confidence=risk_score.confidence,
         ml_probability=risk_score.prediction.probability if risk_score.prediction else None,
         is_anomaly=risk_score.prediction.is_anomaly if risk_score.prediction else None,
-        top_features=risk_score.top_features,
+        top_features=await enrich_top_features(features, risk_score.top_features),
         rule_triggers=risk_score.rule_triggers,
         explanation=explanation["summary"],
     )
     db.add(report)
+    await db.flush()
+    await save_calibration_sample(db, calibration_sample_kwargs(
+        exam_id=exam_id,
+        institution_id=current_user.institution_id,
+        report_id=report.id,
+        exam_difficulty=exam_difficulty,
+        features=features,
+        overall_score=risk_score.overall_score,
+        risk_level=risk_score.risk_level.value,
+        rule_score=risk_score.components.rule_score,
+        ml_score=risk_score.components.ml_score,
+        context_score=risk_score.components.context_score,
+    ))
     await db.flush()
 
     return {
@@ -203,4 +218,38 @@ async def get_exam_risk_overview(
             }
             for r in reports
         ],
+    }
+
+
+@router.get("/calibration/summary")
+async def get_calibration_summary(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_role([UserRole.ADMIN, UserRole.TEACHER, UserRole.EXAM_CONTROLLER])
+    ),
+):
+    """Aggregate calibration samples by exam difficulty.
+
+    The raw material for future per-exam-type threshold tuning: how many
+    scored samples exist per difficulty band and their mean scores.
+    Grows as reports are saved; empty until real exams run.
+    """
+    rows = await db.execute(
+        select(
+            RiskCalibrationSample.exam_difficulty,
+            func.count(RiskCalibrationSample.id),
+            func.avg(RiskCalibrationSample.overall_score),
+        )
+        .where(RiskCalibrationSample.institution_id == current_user.institution_id)
+        .group_by(RiskCalibrationSample.exam_difficulty)
+    )
+    by_difficulty = [
+        {"difficulty": d, "samples": int(n), "mean_score": round(float(m or 0.0), 2)}
+        for d, n, m in rows.all()
+    ]
+    total = sum(b["samples"] for b in by_difficulty)
+    return {
+        "total_samples": total,
+        "by_difficulty": by_difficulty,
+        "note": "Thresholds stay global until per-band samples justify tuning.",
     }

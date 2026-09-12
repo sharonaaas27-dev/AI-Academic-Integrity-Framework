@@ -17,6 +17,7 @@ xgboost
 numpy
 pandas
 scipy
+shap
 minio
 aiosmtplib
 jinja2

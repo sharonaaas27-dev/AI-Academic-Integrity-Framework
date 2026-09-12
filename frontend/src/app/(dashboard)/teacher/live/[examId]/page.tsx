@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import { api } from "@/lib/api";
+import { useLiveExam } from "@/lib/use-live";
 import { toast } from "sonner";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -38,6 +39,7 @@ export default function LiveDashboardPage() {
   const examId = params.examId as string;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pollKey, setPollKey] = useState(0);
+  const { liveConnected } = useLiveExam(examId);
 
   const { data: exam } = useQuery({
     queryKey: ["exam", examId],
@@ -112,9 +114,13 @@ export default function LiveDashboardPage() {
                   Live
                 </span>
               </h1>
-              <p className="flex items-center gap-1 text-sm text-gray-500">
+              <p className="flex items-center gap-1.5 text-sm text-gray-500">
                 <Radio className="h-3.5 w-3.5 text-rose-400" />
-                Auto-refreshes every 5s
+                {liveConnected ? (
+                  <span className="font-bold text-emerald-600">Live push connected</span>
+                ) : (
+                  <>Auto-refreshes every 5s</>
+                )}
               </p>
             </div>
           </div>

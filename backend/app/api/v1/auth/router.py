@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import uuid4, UUID
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from ....core.database import get_db
 from ....core.security import (
@@ -11,6 +12,10 @@ from ....core.security import (
     create_access_token,
     create_refresh_token,
     verify_token,
+    set_auth_cookies,
+    clear_auth_cookies,
+    ACCESS_COOKIE,
+    REFRESH_COOKIE,
 )
 from ....core.config import settings
 from ....models.sqlalchemy.user import User, Session as UserSession
@@ -37,6 +42,7 @@ router = APIRouter()
 @router.post("/login", response_model=LoginResponse)
 async def login(
     request: LoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.email == request.email))
@@ -88,6 +94,10 @@ async def login(
     )
     db.add(user_session)
 
+    # HttpOnly cookie mirror (primary for browsers); JSON tokens retained
+    # so non-browser clients and the localStorage fallback keep working.
+    set_auth_cookies(response, access_token, refresh_token)
+
     return LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -108,6 +118,7 @@ async def login(
 @router.post("/google", response_model=LoginResponse)
 async def google_login(
     request: GoogleLoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -196,6 +207,8 @@ async def google_login(
     )
     db.add(user_session)
 
+    set_auth_cookies(response, access_token, refresh_token)
+
     return LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -252,9 +265,22 @@ async def register(
 @router.post("/refresh", response_model=RefreshTokenResponse)
 async def refresh_token(
     request: RefreshTokenRequest,
+    response: Response,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    payload = verify_token(request.refresh_token, expected_type="refresh")
+    # Cookie-first: browsers send the HttpOnly cookie automatically;
+    # body token is the fallback for non-browser clients.
+    raw_refresh = (
+        http_request.cookies.get(REFRESH_COOKIE)
+        or (request.refresh_token or None)
+    )
+    if not raw_refresh:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing refresh token",
+        )
+    payload = verify_token(raw_refresh, expected_type="refresh")
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -285,6 +311,8 @@ async def refresh_token(
         session_id=new_session_id,
     )
 
+    set_auth_cookies(response, access_token, new_refresh_token)
+
     return RefreshTokenResponse(
         access_token=access_token,
         refresh_token=new_refresh_token,
@@ -295,15 +323,20 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(
-    authorization: str = Header(None),
+    http_request: Request,
+    response: Response,
+    authorization: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
-    if not authorization:
+    token: Optional[str] = None
+    if authorization:
+        scheme, _, tok = authorization.partition(" ")
+        if scheme.lower() == "bearer" and tok:
+            token = tok
+    if token is None:
+        token = http_request.cookies.get(ACCESS_COOKIE)
+    if not token:
         raise HTTPException(status_code=401, detail="Missing token")
-
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Invalid scheme")
 
     payload = verify_token(token)
     if payload and payload.get("session_id"):
@@ -317,4 +350,5 @@ async def logout(
         if session:
             session.is_active = False
 
+    clear_auth_cookies(response)
     return {"message": "Logged out successfully"}

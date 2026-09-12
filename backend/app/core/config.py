@@ -90,10 +90,15 @@ class Settings(BaseSettings):
     BEHAVIOR_MAX_BATCH_SIZE: int = 500
     BEHAVIOR_OFFLINE_BUFFER_KEY: str = "behavior:offline:"
 
+    # Risk background job queue (bounded, coalesced workers)
+    RISK_QUEUE_WORKERS: int = 2
+    RISK_QUEUE_MAXSIZE: int = 1000
+
     # ML / Risk Engine
     ML_MODEL_PATH: str = "ml/models"
     ML_CONFIDENCE_THRESHOLD: float = 0.7
     ML_PREDICTION_BATCH_SIZE: int = 32
+    SHAP_ENABLED: bool = False
     RISK_WEIGHT_RULES: float = 0.3
     RISK_WEIGHT_ML: float = 0.5
     RISK_WEIGHT_CONTEXT: float = 0.2

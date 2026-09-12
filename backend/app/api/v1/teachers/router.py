@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, or_, func
 from typing import Optional, List
@@ -6,12 +6,14 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from ....core.database import get_db
+from ....core.security import verify_token
 from ....api.deps import get_current_user, require_role
 from ....domain.enums import UserRole, SUSPICIOUS_EVENT_TYPES
 from ....models.sqlalchemy.exam import Exam, Question, ExamEnrollment, Course, Answer
 from ....models.sqlalchemy.risk import RiskReport
 from ....models.sqlalchemy.behavior import RawBehaviorEvent
 from ....models.sqlalchemy.user import User
+from ....services.realtime.broadcaster import broadcaster
 
 router = APIRouter()
 
@@ -437,3 +439,50 @@ async def get_suspicious_students(
         })
 
     return suspicious
+
+
+@router.websocket("/live/{exam_id}/subscribe")
+async def subscribe_live_exam(
+    websocket: WebSocket,
+    exam_id: str,
+    token: str = Query(...),
+):
+    """Teacher live-push subscription. Auth via ?token= (browsers can't set
+    WS headers). Messages only invalidate caches — HTTP polling is fallback."""
+    payload = verify_token(token, expected_type="access")
+    if not payload:
+        await websocket.close(code=4401)
+        return
+    try:
+        exam_uuid = UUID(exam_id)
+        user_uuid = UUID(str(payload.get("sub")))
+    except (ValueError, TypeError, AttributeError):
+        await websocket.close(code=4408)
+        return
+
+    from ....core.database import async_session_factory
+
+    async with async_session_factory() as db:
+        user = await db.get(User, user_uuid)
+        exam = await db.get(Exam, exam_uuid)
+        if not user or not exam or not user.is_active:
+            await websocket.close(code=4404)
+            return
+        allowed_roles = (UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.EXAM_CONTROLLER)
+        if exam.created_by != user.id and user.role not in allowed_roles:
+            await websocket.close(code=4403)
+            return
+
+    await broadcaster.connect(exam_id, websocket)
+    try:
+        while True:
+            # Heartbeat/keepalive; clients may send {"ping": 1}.
+            data = await websocket.receive_json()
+            if isinstance(data, dict) and data.get("ping"):
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await broadcaster.disconnect(exam_id, websocket)

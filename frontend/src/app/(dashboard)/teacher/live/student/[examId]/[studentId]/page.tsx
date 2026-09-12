@@ -26,6 +26,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { api } from "@/lib/api";
+import { useLiveExam } from "@/lib/use-live";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { EmptyAlerts, EmptyExams } from "@/components/illustrations/scenes";
@@ -54,6 +55,7 @@ export default function StudentLiveDetailPage() {
   const router = useRouter();
   const examId = params.examId as string;
   const studentId = params.studentId as string;
+  useLiveExam(examId); // live-push invalidates caches; 5s poll is fallback
 
   const { data, isLoading } = useQuery({
     queryKey: ["live-student-detail", examId, studentId],

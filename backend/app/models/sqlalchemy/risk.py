@@ -111,4 +111,43 @@ class Rule(Base, TimestampMixin, SoftDeleteMixin):
         return f"<Rule {self.name} +{self.score_increment}>"
 
 
+class RiskCalibrationSample(Base, TimestampMixin):
+    """Raw material for future per-exam-type calibration.
+
+    One row per saved RiskReport: the feature snapshot, the score the
+    system produced, and the exam difficulty/type context. Reviewer
+    verdicts land here later (via RiskReport.review_status joins), at
+    which point thresholds can be tuned from data instead of guesses.
+    New table => created automatically by ``Base.metadata.create_all``.
+    """
+
+    __tablename__ = "risk_calibration_samples"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    exam_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False, index=True
+    )
+    institution_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("institutions.id"), nullable=False, index=True
+    )
+    report_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("risk_reports.id"), nullable=False, index=True
+    )
+    exam_difficulty: Mapped[str] = mapped_column(String(20), default="medium")
+    features: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    overall_score: Mapped[float] = mapped_column(Float, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    rule_score: Mapped[float] = mapped_column(Float, default=0.0)
+    ml_score: Mapped[float] = mapped_column(Float, default=0.0)
+    context_score: Mapped[float] = mapped_column(Float, default=0.0)
+    sampled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<CalibrationSample {self.exam_difficulty} score={self.overall_score}>"
+
+
 

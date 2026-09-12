@@ -42,7 +42,8 @@ class GoogleLoginRequest(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    # Optional: browsers send the HttpOnly cookie instead of a body token.
+    refresh_token: Optional[str] = ""
 
 
 class RefreshTokenResponse(BaseModel):

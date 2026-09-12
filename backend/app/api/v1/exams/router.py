@@ -14,6 +14,7 @@ from ....models.sqlalchemy.behavior import RawBehaviorEvent
 from ....models.sqlalchemy.risk import RiskReport
 from ....models.pydantic.exam import ExamCreate, QuestionCreate, EnrollStudent, BulkEnrollStudents
 from ....services.risk.risk_engine import risk_engine
+from ....services.risk.reporting import enrich_top_features, calibration_sample_kwargs, save_calibration_sample
 from ....services.feature_engineering.feature_engine import feature_engine
 from ....services.explainable_ai.explainer import explainer
 from ....services.timeline.timeline_engine import timeline_engine
@@ -267,11 +268,24 @@ async def calculate_risk_for_submission(
                 ml_confidence=risk_score.confidence,
                 ml_probability=risk_score.prediction.probability if risk_score.prediction else None,
                 is_anomaly=risk_score.prediction.is_anomaly if risk_score.prediction else None,
-                top_features=risk_score.top_features,
+                top_features=await enrich_top_features(features, risk_score.top_features),
                 rule_triggers=risk_score.rule_triggers,
                 explanation=explanation["summary"],
             )
             db.add(report)
+            await db.flush()
+            await save_calibration_sample(db, calibration_sample_kwargs(
+                exam_id=exam_id,
+                institution_id=institution_id,
+                report_id=report.id,
+                exam_difficulty=exam_difficulty,
+                features=features,
+                overall_score=risk_score.overall_score,
+                risk_level=risk_score.risk_level.value,
+                rule_score=risk_score.components.rule_score,
+                ml_score=risk_score.components.ml_score,
+                context_score=risk_score.components.context_score,
+            ))
             await db.commit()
             logger.info(
                 "Auto risk score calculated: student=%s exam=%s score=%.2f level=%s",

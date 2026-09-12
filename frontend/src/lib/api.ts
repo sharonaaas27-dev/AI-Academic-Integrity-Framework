@@ -32,6 +32,7 @@ async function refreshToken(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
       method: "POST",
+      credentials: "include", // send HttpOnly cookies when present
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -74,6 +75,7 @@ async function request<T = any>(
 
   let response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
+    credentials: "include", // HttpOnly cookie auth (primary); header is fallback
     headers,
   });
 
@@ -92,6 +94,7 @@ async function request<T = any>(
       headers["Authorization"] = `Bearer ${newToken}`;
       response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
+        credentials: "include",
         headers,
       });
     } else {
@@ -133,15 +136,11 @@ export const api = {
     request<T>(endpoint, { method: "DELETE" }),
 };
 
-export function createWebSocket(
-  examId: string,
-  studentId: string,
-  sessionId: string
-): WebSocket {
-  const ws = new WebSocket(
-    `${WS_BASE}/api/v1/behavior/ws/${examId}/${studentId}/${sessionId}`
-  );
-  return ws;
+export function liveSubscribeUrl(examId: string): string | null {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem("access_token");
+  if (!token) return null;
+  return `${WS_BASE}/api/v1/teachers/live/${examId}/subscribe?token=${encodeURIComponent(token)}`;
 }
 
 export { ApiError };
