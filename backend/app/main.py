@@ -64,6 +64,8 @@ app = FastAPI(
 
 # Middleware — explicit origins when credentials are used ("*" + credentials
 # is rejected by browsers and reflects any origin). Env can override.
+# Vercel preview/production domains are covered by the regex below so the
+# deployed frontend is never locked out by the restrictive default.
 _cors_origins = [o for o in settings.CORS_ORIGINS if o != "*"] or [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -71,6 +73,7 @@ _cors_origins = [o for o in settings.CORS_ORIGINS if o != "*"] or [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],

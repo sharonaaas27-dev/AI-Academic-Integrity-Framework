@@ -54,7 +54,9 @@ export default function ExamPage() {
       if (user.id) studentId = user.id;
     } catch {} // eslint-disable-line no-empty
     const monitor = createBehaviorMonitor({
-      apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+      apiUrl:
+        process.env.NEXT_PUBLIC_API_URL ||
+        (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000"),
       examId,
       studentId,
       sessionId: sessionId.current,

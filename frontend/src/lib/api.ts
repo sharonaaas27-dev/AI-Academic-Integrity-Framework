@@ -1,5 +1,15 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+// Same-origin by default: the browser calls /api/... on the current domain,
+// which Next rewrites (local) or Vercel services rewrites (prod) proxy to the
+// backend. An explicit NEXT_PUBLIC_API_URL overrides this when set.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+function defaultWsBase(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
+  }
+  return "ws://localhost:8000";
+}
+const WS_BASE = defaultWsBase();
 
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
