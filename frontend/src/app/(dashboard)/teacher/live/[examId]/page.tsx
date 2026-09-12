@@ -3,22 +3,26 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Users,
   Clock,
   CheckCircle,
   AlertTriangle,
-  Loader2,
   RefreshCw,
   Eye,
   Shield,
   Activity,
+  Radio,
 } from "lucide-react";
-import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { StatCard } from "@/components/ui/StatCard";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { CardSkeleton } from "@/components/ui/Skeleton";
+import { EmptyStudents, EmptyAlerts } from "@/components/illustrations/scenes";
 
 const RISK_COLORS: Record<string, string> = {
   critical: "bg-red-100 text-red-700 border-red-200",
@@ -66,8 +70,8 @@ export default function LiveDashboardPage() {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case "completed": return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case "active": return <Activity className="h-4 w-4 text-blue-600" />;
+      case "completed": return <CheckCircle className="h-4 w-4 text-emerald-600" />;
+      case "active": return <Activity className="h-4 w-4 text-sky-600" />;
       default: return <Clock className="h-4 w-4 text-gray-400" />;
     }
   };
@@ -81,210 +85,252 @@ export default function LiveDashboardPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.push("/teacher/dashboard")}
-            className="p-2 border rounded-lg hover:bg-gray-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold">{exam?.title || "Live Monitoring"}</h1>
-            <p className="text-sm text-gray-500">
-              Auto-refreshes every 5s
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setPollKey((k) => k + 1);
-              toast.success("Refreshed");
-            }}
-            className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </button>
-          <Shield className="h-5 w-5 text-primary" />
-        </div>
-      </div>
-
-      {/* Summary cards */}
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          {[
-            { label: "Total Enrolled", value: summary.total_enrolled, icon: Users, color: "text-blue-600 bg-blue-50" },
-            { label: "Not Started", value: summary.not_started, icon: Clock, color: "text-gray-600 bg-gray-50" },
-            { label: "In Progress", value: summary.active, icon: Activity, color: "text-blue-600 bg-blue-100" },
-            { label: "Submitted", value: summary.completed, icon: CheckCircle, color: "text-green-600 bg-green-50" },
-            { label: "Alerts (5m)", value: summary.recent_alerts_5min, icon: AlertTriangle, color: "text-red-600 bg-red-50" },
-          ].map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="bg-white p-4 rounded-xl shadow-sm border"
+    <div className="bg-campus min-h-screen">
+      <div className="mx-auto max-w-7xl p-6">
+        {/* Header with LIVE badge */}
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-rose-200 bg-gradient-to-r from-rose-50 via-white to-amber-50 p-4 shadow-sm"
+        >
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push("/teacher/dashboard")}
+              className="rounded-full border-2 border-amber-200 bg-white p-2 transition-all hover:border-orange-300"
+              aria-label="Back to dashboard"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500">{s.label}</p>
-                  <p className="text-2xl font-bold mt-0.5">{s.value}</p>
-                </div>
-                <div className={`p-2 rounded-lg ${s.color}`}>
-                  <s.icon className="h-4 w-4" />
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* Recent Alerts */}
-      {alerts && alerts.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <h2 className="font-semibold text-sm">Recent Alerts</h2>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {alerts.slice(0, 10).map((alert: any) => (
-              <div
-                key={alert.id}
-                className="flex items-center justify-between p-2 bg-red-50 border border-red-200 rounded-lg text-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{alert.student_name}</span>
-                  <span className="text-xs text-red-600">{alert.event_type.replace(/_/g, " ")}</span>
-                </div>
-                <span className="text-xs text-gray-500">
-                  {(() => {
-                    const raw = alert.timestamp_ms ?? alert.timestamp ?? (alert.server_timestamp ? alert.server_timestamp * 1000 : undefined);
-                    const tsMs = typeof raw === "number" && Number.isFinite(raw) ? raw : Date.now();
-                    return `${Math.max(0, Math.round((Date.now() - tsMs) / 60000))}m ago`;
-                  })()}
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div>
+              <h1 className="flex items-center gap-2 text-xl font-extrabold text-gray-900">
+                {exam?.title || "Live Monitoring"}
+                <span className="flex items-center gap-1.5 rounded-full bg-rose-500 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                  </span>
+                  Live
                 </span>
-              </div>
+              </h1>
+              <p className="flex items-center gap-1 text-sm text-gray-500">
+                <Radio className="h-3.5 w-3.5 text-rose-400" />
+                Auto-refreshes every 5s
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setPollKey((k) => k + 1);
+                toast.success("Refreshed");
+              }}
+              className="flex items-center gap-1.5 rounded-full border-2 border-amber-200 bg-white px-4 py-1.5 text-sm font-bold text-gray-600 transition-all hover:border-orange-300 hover:text-orange-600"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+            <span className="rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 p-1.5">
+              <Shield className="h-5 w-5 text-white" />
+            </span>
+          </div>
+        </motion.div>
+
+        {/* Summary cards */}
+        {summary && (
+          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <StatCard icon={Users} label="Enrolled" value={summary.total_enrolled} color="blue" index={0} />
+            <StatCard icon={Clock} label="Not Started" value={summary.not_started} color="orange" index={1} />
+            <StatCard icon={Activity} label="In Progress" value={summary.active} color="teal" index={2} />
+            <StatCard icon={CheckCircle} label="Submitted" value={summary.completed} color="green" index={3} />
+            <StatCard icon={AlertTriangle} label="Alerts (5m)" value={summary.recent_alerts_5min} color="red" index={4} />
+          </div>
+        )}
+
+        {/* Recent Alerts */}
+        {alerts && alerts.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-3xl border-2 border-rose-200 bg-white p-4 shadow-sm"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+              </span>
+              <h2 className="text-sm font-extrabold text-gray-900">Recent Alerts</h2>
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">{alerts.length}</span>
+            </div>
+            <div className="max-h-48 space-y-2 overflow-y-auto">
+              <AnimatePresence initial={false}>
+                {alerts.slice(0, 10).map((alert: any) => (
+                  <motion.div
+                    key={alert.id}
+                    layout
+                    initial={{ opacity: 0, x: -20, backgroundColor: "#fecdd3" }}
+                    animate={{ opacity: 1, x: 0, backgroundColor: "#fff1f2" }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4 }}
+                    className="flex items-center justify-between rounded-xl border border-rose-200 p-2 text-sm"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-orange-400 text-xs font-extrabold text-white">
+                        {(alert.student_name || "?")[0].toUpperCase()}
+                      </span>
+                      <span className="truncate font-bold text-gray-900">{alert.student_name}</span>
+                      <span className="rounded-full bg-rose-200/70 px-2 py-0.5 text-xs font-semibold text-rose-700">{alert.event_type.replace(/_/g, " ")}</span>
+                    </div>
+                    <span className="flex-shrink-0 text-xs font-medium text-gray-500">
+                      {(() => {
+                        const raw = alert.timestamp_ms ?? alert.timestamp ?? (alert.server_timestamp ? alert.server_timestamp * 1000 : undefined);
+                        const tsMs = typeof raw === "number" && Number.isFinite(raw) ? raw : Date.now();
+                        return `${Math.max(0, Math.round((Date.now() - tsMs) / 60000))}m ago`;
+                      })()}
+                    </span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-3xl border-2 border-emerald-200 bg-white p-4 shadow-sm"
+          >
+            <EmptyState art={<EmptyAlerts />} title="Quiet room — no alerts" hint="Suspicious events will pop up here live" />
+          </motion.div>
+        )}
+
+        {/* Student Grid */}
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold text-gray-900">
+          <Users className="h-5 w-5 text-orange-500" />
+          Students
+        </h2>
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <CardSkeleton key={i} lines={2} />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Student Grid */}
-      <h2 className="text-lg font-semibold mb-3">Students</h2>
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-32 bg-gray-100 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : students?.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {students.map((s: any, i: number) => (
-            <motion.div
-              key={s.student_id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
-              className={`bg-white rounded-xl shadow-sm border p-4 ${
-                s.risk_level === "critical" || s.risk_level === "high"
-                  ? "border-red-300 ring-1 ring-red-200"
-                  : s.risk_level === "medium"
-                    ? "border-orange-200"
-                    : ""
-              }`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {statusIcon(s.status)}
-                  <div>
-                    <p className="font-medium text-sm">{s.student_name}</p>
-                    <p className="text-xs text-gray-500">{s.student_email}</p>
+        ) : students?.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {students.map((s: any, i: number) => (
+              <motion.div
+                key={s.student_id}
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.04, 0.4) }}
+                whileHover={{ y: -4 }}
+                className={`rounded-3xl border-2 bg-white p-4 shadow-sm transition-shadow hover:shadow-lg ${
+                  s.risk_level === "critical"
+                    ? "animate-pulse border-rose-400 ring-2 ring-rose-200"
+                    : s.risk_level === "high"
+                      ? "border-rose-300 ring-1 ring-rose-200"
+                      : s.risk_level === "medium"
+                        ? "border-orange-200"
+                        : "border-amber-100"
+                }`}
+              >
+                <div className="mb-3 flex items-start justify-between">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-sm font-extrabold text-white">
+                      {(s.student_name || "?")[0].toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 truncate text-sm font-bold text-gray-900">
+                        {statusIcon(s.status)}
+                        {s.student_name}
+                      </p>
+                      <p className="truncate text-xs text-gray-500">{s.student_email}</p>
+                    </div>
                   </div>
+                  {s.risk_level && (
+                    <span
+                      className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold ${
+                        RISK_COLORS[s.risk_level] || "bg-gray-50 text-gray-600"
+                      }`}
+                    >
+                      {s.risk_level}
+                    </span>
+                  )}
                 </div>
-                {s.risk_level && (
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full border ${
-                      RISK_COLORS[s.risk_level] || "bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    {s.risk_level}
-                  </span>
-                )}
-              </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
-                <div>
-                  <span className="text-gray-400">Status:</span>{" "}
-                  <span className="font-medium">{statusLabel(s.status)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400">Progress:</span>{" "}
-                  <span className="font-medium">
-                    {s.answered_count}/{s.total_questions}
-                  </span>
-                </div>
-                {s.time_taken_seconds && (
-                  <div>
-                    <span className="text-gray-400">Time:</span>{" "}
-                    <span className="font-medium">
-                      {Math.floor(s.time_taken_seconds / 60)}m
+                <div className="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div className="rounded-xl bg-amber-50/70 px-2.5 py-1.5">
+                    <span className="text-gray-400">Status:</span>{" "}
+                    <span className="font-bold">{statusLabel(s.status)}</span>
+                  </div>
+                  <div className="rounded-xl bg-amber-50/70 px-2.5 py-1.5">
+                    <span className="text-gray-400">Progress:</span>{" "}
+                    <span className="font-bold">
+                      {s.answered_count}/{s.total_questions}
                     </span>
                   </div>
-                )}
-                {s.risk_score !== null && (
-                  <div>
-                    <span className="text-gray-400">Risk:</span>{" "}
-                    <span className="font-medium">{s.risk_score}</span>
+                  {s.time_taken_seconds && (
+                    <div className="rounded-xl bg-amber-50/70 px-2.5 py-1.5">
+                      <span className="text-gray-400">Time:</span>{" "}
+                      <span className="font-bold">
+                        {Math.floor(s.time_taken_seconds / 60)}m
+                      </span>
+                    </div>
+                  )}
+                  {s.risk_score !== null && s.risk_score !== undefined && (
+                    <div className="rounded-xl bg-amber-50/70 px-2.5 py-1.5">
+                      <span className="text-gray-400">Risk:</span>{" "}
+                      <span className="font-bold">{s.risk_score}</span>
+                    </div>
+                  )}
+                </div>
+
+                {s.risk_score_history?.length > 1 && (
+                  <div className="mb-2 h-12">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={s.risk_score_history}>
+                        <defs>
+                          <linearGradient id={`riskGrad-${s.student_id}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#fb923c" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="#fb923c" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <Tooltip
+                          contentStyle={{ borderRadius: 12, fontSize: 12, border: "2px solid #fed7aa" }}
+                          labelStyle={{ fontWeight: "bold" }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="score"
+                          stroke={s.risk_score > 40 ? "#f43f5e" : s.risk_score > 20 ? "#f59e0b" : "#10b981"}
+                          fill={`url(#riskGrad-${s.student_id})`}
+                          strokeWidth={2.5}
+                          dot={false}
+                          isAnimationActive
+                          animationDuration={800}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 )}
-              </div>
 
-              {s.risk_score_history?.length > 1 && (
-                <div className="h-10 mb-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={s.risk_score_history}>
-                      <defs>
-                        <linearGradient id="riskGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area
-                        type="monotone"
-                        dataKey="score"
-                        stroke={s.risk_score > 40 ? "#ef4444" : s.risk_score > 20 ? "#f59e0b" : "#22c55e"}
-                        fill="url(#riskGrad)"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              <button
-                onClick={() =>
-                  router.push(`/teacher/live/student/${examId}/${s.student_id}`)
-                }
-                className="flex items-center justify-center gap-1 w-full py-1.5 text-xs border rounded-lg hover:bg-gray-50"
-              >
-                <Eye className="h-3 w-3" />
-                View Details
-              </button>
-            </motion.div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16">
-          <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No students enrolled yet</p>
-        </div>
-      )}
+                <button
+                  onClick={() =>
+                    router.push(`/teacher/live/student/${examId}/${s.student_id}`)
+                  }
+                  className="flex w-full items-center justify-center gap-1 rounded-xl border-2 border-amber-200 py-1.5 text-xs font-bold text-gray-600 transition-all hover:border-orange-400 hover:text-orange-600"
+                >
+                  <Eye className="h-3 w-3" />
+                  View Details
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-3xl border-2 border-amber-100 bg-white shadow-sm">
+            <EmptyState art={<EmptyStudents />} title="No students enrolled yet" hint="Enroll students to watch them live here" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

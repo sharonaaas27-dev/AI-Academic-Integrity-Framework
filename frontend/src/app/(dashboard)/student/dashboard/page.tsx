@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
   FileText,
@@ -14,14 +14,23 @@ import {
   ArrowRight,
   LogOut,
   Loader2,
+  PartyPopper,
+  CalendarDays,
+  Timer,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyExams } from "@/components/illustrations/scenes";
 
 export default function StudentDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [authChecked, setAuthChecked] = useState(false);
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -41,6 +50,7 @@ export default function StudentDashboard() {
         router.replace("/teacher/dashboard");
         return;
       }
+      setUserName(user.first_name || user.email?.split("@")[0] || "Scholar");
     } catch {
       router.replace("/login");
       return;
@@ -62,6 +72,11 @@ export default function StudentDashboard() {
     retry: 2,
   });
 
+  const avgScore =
+    history?.length > 0
+      ? history.reduce((s: number, h: any) => s + (h.percentage ?? 0), 0) / history.length
+      : null;
+
   const handleLogout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
@@ -71,191 +86,201 @@ export default function StudentDashboard() {
 
   if (!authChecked) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="bg-campus flex h-screen items-center justify-center">
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+          <Loader2 className="h-8 w-8 text-orange-500" />
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Student Dashboard
-          </h1>
-          <p className="text-gray-600 mt-1">
-            View your upcoming exams and history
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-2 border rounded-lg text-gray-600 hover:bg-gray-50"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        {[
-          {
-            label: "Upcoming Exams",
-            value: exams?.length || 0,
-            icon: Clock,
-            color: "text-blue-600 bg-blue-50",
-          },
-          {
-            label: "Completed",
-            value: history?.length || 0,
-            icon: CheckCircle,
-            color: "text-green-600 bg-green-50",
-          },
-          {
-            label: "Pending Review",
-            value: 0,
-            icon: AlertTriangle,
-            color: "text-yellow-600 bg-yellow-50",
-          },
-          {
-            label: "Average Score",
-            value: "—",
-            icon: GraduationCap,
-            color: "text-purple-600 bg-purple-50",
-          },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-white p-5 rounded-xl shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">{stat.label}</p>
-                <p className="text-2xl font-bold mt-1">{stat.value}</p>
-              </div>
-              <div className={`p-3 rounded-lg ${stat.color}`}>
-                <stat.icon className="h-5 w-5" />
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Upcoming Exams */}
-      <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
-        <h2 className="text-lg font-semibold mb-4">Upcoming Exams</h2>
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-20 bg-gray-100 rounded-lg animate-pulse"
-              />
-            ))}
-          </div>
-        ) : isError ? (
-          <div className="text-center py-8">
-            <AlertTriangle className="h-8 w-8 text-red-400 mx-auto mb-2" />
-            <p className="text-gray-600">Failed to load exams</p>
+    <div className="bg-campus min-h-screen">
+      <div className="mx-auto max-w-7xl p-6">
+        <PageHeader
+          title={`Hey ${userName}! Ready to shine?`}
+          subtitle="Your upcoming exams and past victories live here"
+          actions={
             <button
-              onClick={() =>
-                queryClient.invalidateQueries({ queryKey: ["student-exams"] })
-              }
-              className="mt-2 text-primary text-sm hover:underline"
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-full border-2 border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition-all hover:border-orange-300 hover:text-orange-600"
             >
-              Try again
+              <LogOut className="h-4 w-4" />
+              Log out
             </button>
-          </div>
-        ) : exams?.length > 0 ? (
-          <div className="space-y-3">
-            {exams.map((exam: any) => (
-              <div
-                key={exam.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-start gap-4">
-                  <FileText className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">{exam.title}</p>
-                    <p className="text-sm text-gray-600">
-                      {exam.course_name} | {exam.duration_minutes} min
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatDate(exam.start_time)}
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href={"/student/exam/" + exam.id}
-                  className="flex items-center gap-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
-                >
-                  Join Exam
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No upcoming exams</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Ask your teacher to enroll you in an exam
-            </p>
-          </div>
-        )}
-      </div>
+          }
+        />
 
-      {/* Recent History */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h2 className="text-lg font-semibold mb-4">Recent Exam History</h2>
-        {history?.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="pb-3 font-medium text-gray-600">Exam</th>
-                  <th className="pb-3 font-medium text-gray-600">Date</th>
-                  <th className="pb-3 font-medium text-gray-600">Score</th>
-                  <th className="pb-3 font-medium text-gray-600">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((item: any) => (
-                  <tr key={item.id} className="border-b last:border-0">
-                    <td className="py-3">{item.exam_title}</td>
-                    <td className="py-3 text-gray-600">
-                      {formatDate(item.submitted_at)}
-                    </td>
-                    <td className="py-3 font-medium">
-                      {item.score !== null
-                        ? `${item.score}/${item.total_marks}`
-                        : "—"}
-                    </td>
-                    <td className="py-3">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.status === "completed"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {item.status}
+        {/* Stats */}
+        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <StatCard icon={Clock} label="Upcoming Exams" value={exams?.length || 0} color="blue" index={0} />
+          <StatCard icon={CheckCircle} label="Completed" value={history?.length || 0} color="green" index={1} />
+          <StatCard
+            icon={GraduationCap}
+            label="Average Score"
+            value={avgScore !== null ? avgScore : "—"}
+            decimals={avgScore !== null ? 1 : 0}
+            suffix={avgScore !== null ? "%" : ""}
+            color="purple"
+            index={2}
+          />
+          <StatCard
+            icon={PartyPopper}
+            label="Passed"
+            value={history?.filter((h: any) => (h.percentage ?? 0) >= 50).length || 0}
+            color="orange"
+            index={3}
+          />
+        </div>
+
+        {/* Upcoming Exams */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-8 rounded-3xl border-2 border-amber-100 bg-white p-6 shadow-sm"
+        >
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-extrabold text-gray-900">
+            <CalendarDays className="h-5 w-5 text-orange-500" />
+            Upcoming Exams
+          </h2>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20" />
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="py-8 text-center">
+              <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-rose-400" />
+              <p className="font-medium text-gray-600">Oops! Couldn&apos;t load exams</p>
+              <button
+                onClick={() =>
+                  queryClient.invalidateQueries({ queryKey: ["student-exams"] })
+                }
+                className="mt-2 text-sm font-bold text-orange-600 hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : exams?.length > 0 ? (
+            <div className="space-y-3">
+              <AnimatePresence initial={false}>
+                {exams.map((exam: any, i: number) => (
+                  <motion.div
+                    key={exam.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.07 }}
+                    whileHover={{ scale: 1.01 }}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-amber-100 bg-gradient-to-r from-white to-amber-50/50 p-4 transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-xl bg-gradient-to-br from-teal-400 to-emerald-500 p-2">
+                        <FileText className="h-5 w-5 text-white" />
                       </span>
-                    </td>
-                  </tr>
+                      <div>
+                        <p className="font-bold text-gray-900">{exam.title}</p>
+                        <p className="flex items-center gap-2 text-sm text-gray-600">
+                          {exam.course_name}
+                          <span className="flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
+                            <Timer className="h-3 w-3" />
+                            {exam.duration_minutes} min
+                          </span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {formatDate(exam.start_time)}
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      href={"/student/exam/" + exam.id}
+                      className="group flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-200 transition-transform hover:scale-105"
+                    >
+                      Join Exam
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  </motion.div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-gray-500 text-center py-8">
-            No exam history yet
-          </p>
-        )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <EmptyState
+              art={<EmptyExams />}
+              title="No upcoming exams — enjoy the break!"
+              hint="Ask your teacher to enroll you in an exam"
+            />
+          )}
+        </motion.div>
+
+        {/* Recent History */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="rounded-3xl border-2 border-amber-100 bg-white p-6 shadow-sm"
+        >
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-extrabold text-gray-900">
+            <CheckCircle className="h-5 w-5 text-emerald-500" />
+            Recent Exam History
+          </h2>
+          {history?.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-amber-100 text-left">
+                    <th className="pb-3 font-bold text-gray-500">Exam</th>
+                    <th className="pb-3 font-bold text-gray-500">Date</th>
+                    <th className="pb-3 font-bold text-gray-500">Score</th>
+                    <th className="pb-3 font-bold text-gray-500">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((item: any, i: number) => (
+                    <motion.tr
+                      key={item.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="border-b border-amber-50 transition-colors last:border-0 hover:bg-amber-50/50"
+                    >
+                      <td className="py-3 font-semibold">{item.exam_title}</td>
+                      <td className="py-3 text-gray-600">
+                        {formatDate(item.submitted_at)}
+                      </td>
+                      <td className="py-3 font-bold">
+                        {item.score !== null ? (
+                          <span className={(item.percentage ?? 0) >= 50 ? "text-emerald-600" : "text-amber-600"}>
+                            {item.score}/{item.total_marks}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                            item.status === "completed"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {item.status === "completed" ? "✓ " : ""}
+                          {item.status}
+                        </span>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              art={<EmptyExams />}
+              title="No history yet — your victories will appear here"
+            />
+          )}
+        </motion.div>
       </div>
     </div>
   );

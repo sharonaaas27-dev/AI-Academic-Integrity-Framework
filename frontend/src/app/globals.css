@@ -59,6 +59,57 @@
   }
 }
 
+/* ---- Playful education theme ---- */
+@layer utilities {
+  .bg-campus {
+    background-color: #fffaf1;
+    background-image: radial-gradient(#f3e3c3 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .bg-campus-plain {
+    background-color: #fffaf1;
+  }
+  .hero-blob {
+    background:
+      radial-gradient(closest-side, rgba(251, 191, 36, 0.35), transparent),
+      radial-gradient(closest-side, rgba(45, 212, 191, 0.3), transparent),
+      radial-gradient(closest-side, rgba(251, 113, 133, 0.25), transparent);
+  }
+  .animate-float-slow {
+    animation: float-y 6s ease-in-out infinite;
+  }
+  .animate-shimmer {
+    animation: shimmer 1.8s linear infinite;
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-slow,
+  .animate-shimmer,
+  .animate-pulse-risk {
+    animation: none;
+  }
+}
+
 @layer components {
   .risk-level-safe {
     @apply bg-green-100 text-green-800 border-green-200;
