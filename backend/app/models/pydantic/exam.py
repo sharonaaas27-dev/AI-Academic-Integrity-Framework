@@ -6,12 +6,12 @@ from datetime import datetime
 
 class QuestionCreate(BaseModel):
     question_type: str = "multiple_choice"
-    text: str
+    text: str = Field(..., min_length=1, max_length=10000)
     options: Optional[dict] = None
-    correct_answer: Optional[str] = None
+    correct_answer: Optional[str] = Field(default=None, max_length=10000)
     correct_answers: Optional[list] = None
-    marks: float = 1.0
-    difficulty: str = "medium"
+    marks: float = Field(default=1.0, ge=0, le=10000)
+    difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
     order_index: int = 0
     explanation: Optional[str] = None
     time_limit_seconds: Optional[int] = None
@@ -27,13 +27,13 @@ class CourseCreate(BaseModel):
 
 
 class ExamCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
     course_id: UUID
-    duration_minutes: int = 60
-    total_marks: float = 0.0
-    passing_marks: float = 0.0
-    difficulty_level: str = "medium"
+    duration_minutes: int = Field(default=60, ge=1, le=1440)
+    total_marks: float = Field(default=0.0, ge=0, le=100000)
+    passing_marks: float = Field(default=0.0, ge=0, le=100000)
+    difficulty_level: str = Field(default="medium", pattern="^(easy|medium|hard)$")
     instructions: Optional[str] = None
     require_fullscreen: bool = True
     allow_navigation: bool = True

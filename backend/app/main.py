@@ -62,34 +62,30 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENVIRONMENT.value != "production" else None,
 )
 
-# Middleware
+# Middleware — explicit origins when credentials are used ("*" + credentials
+# is rejected by browsers and reflects any origin). Env can override.
+_cors_origins = [o for o in settings.CORS_ORIGINS if o != "*"] or [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(AuditMiddleware)
 
 if settings.ENVIRONMENT.value == "production":
+    # Restrict Host header check to the configured frontend origins plus
+    # vercel domains; "*" would disable the protection entirely.
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*"],
+        allowed_hosts=["*.vercel.app", "localhost", "127.0.0.1"],
     )
-
-
-@app.middleware("http")
-async def ensure_cors_headers(request: Request, call_next):
-    response = await call_next(request)
-    origin = request.headers.get("origin", "*")
-    response.headers.setdefault("Access-Control-Allow-Origin", origin or "*")
-    response.headers.setdefault("Access-Control-Allow-Credentials", "true")
-    response.headers.setdefault("Access-Control-Allow-Methods", "*")
-    response.headers.setdefault("Access-Control-Allow-Headers", "*")
-    return response
 
 
 # Health check

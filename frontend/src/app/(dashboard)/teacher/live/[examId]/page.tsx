@@ -161,7 +161,11 @@ export default function LiveDashboardPage() {
                   <span className="text-xs text-red-600">{alert.event_type.replace(/_/g, " ")}</span>
                 </div>
                 <span className="text-xs text-gray-500">
-                  {Math.round((Date.now() / 1000 - alert.timestamp) / 60)}m ago
+                  {(() => {
+                    const raw = alert.timestamp_ms ?? alert.timestamp ?? (alert.server_timestamp ? alert.server_timestamp * 1000 : undefined);
+                    const tsMs = typeof raw === "number" && Number.isFinite(raw) ? raw : Date.now();
+                    return `${Math.max(0, Math.round((Date.now() - tsMs) / 60000))}m ago`;
+                  })()}
                 </span>
               </div>
             ))}

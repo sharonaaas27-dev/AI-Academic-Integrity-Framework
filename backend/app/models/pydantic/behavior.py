@@ -6,19 +6,19 @@ from ...domain.enums import EventType
 
 
 class BehaviorEventCreate(BaseModel):
-    event_type: str
-    timestamp: float
+    event_type: str = Field(..., min_length=1, max_length=64)
+    timestamp: float = Field(..., ge=0, le=9999999999999)
     data: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class BehaviorBatchCreate(BaseModel):
-    batch_id: str = ""
-    exam_id: Optional[str] = None
-    student_id: Optional[str] = None
-    session_id: Optional[str] = None
-    events: list[BehaviorEventCreate]
-    client_sent_at: float = 0.0
+    batch_id: str = Field(default="", max_length=64)
+    exam_id: Optional[str] = Field(default=None, max_length=64)
+    student_id: Optional[str] = Field(default=None, max_length=64)
+    session_id: Optional[str] = Field(default=None, max_length=128)
+    events: list[BehaviorEventCreate] = Field(..., min_length=1, max_length=500)
+    client_sent_at: float = Field(default=0.0, ge=0, le=9999999999999)
 
 
 class BehaviorEventResponse(BaseModel):

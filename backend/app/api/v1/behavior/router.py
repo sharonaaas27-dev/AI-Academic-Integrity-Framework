@@ -1,9 +1,11 @@
 import asyncio
 import logging
 import uuid
-from uuid import UUID
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from uuid import UUID, uuid4
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
+from sqlalchemy import select, desc
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.database import get_db, async_session_factory
@@ -33,7 +35,22 @@ async def submit_behavior_events(
     """
     Receive a batch of behavior events from the SDK.
     Events are validated, queued, and stored for processing.
+    NOTE: unauthenticated by design (SDK has no token); validated strictly.
     """
+    if not batch.exam_id or not batch.student_id:
+        raise HTTPException(status_code=400, detail="exam_id and student_id are required")
+    if len(batch.events) == 0:
+        raise HTTPException(status_code=400, detail="events batch is empty")
+    if len(batch.events) > settings.BEHAVIOR_MAX_BATCH_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Batch too large (max {settings.BEHAVIOR_MAX_BATCH_SIZE})",
+        )
+    try:
+        UUID(batch.exam_id)
+        UUID(batch.student_id)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid exam_id or student_id (must be UUID)")
     try:
         domain_batch = EventBatch(
             batch_id=batch.batch_id or str(uuid4()),
@@ -72,6 +89,8 @@ async def submit_behavior_events(
             "event_count": len(domain_batch.events),
             "message": "Events received and queued for processing",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Failed to process behavior batch: %s", str(e), exc_info=True)
         return JSONResponse(
@@ -83,12 +102,18 @@ async def submit_behavior_events(
 async def _recalculate_risk_background(exam_id: str, student_id: str):
     """Recalculate risk score for a student in an exam after new events arrive."""
     try:
+        try:
+            exam_uuid = UUID(exam_id)
+            student_uuid = UUID(student_id)
+        except (ValueError, TypeError, AttributeError):
+            logger.warning("Skipping risk recalc: invalid UUIDs %s/%s", exam_id, student_id)
+            return
         async with async_session_factory() as db:
             result = await db.execute(
                 select(ExamEnrollment)
                 .where(
-                    ExamEnrollment.exam_id == UUID(exam_id),
-                    ExamEnrollment.student_id == UUID(student_id),
+                    ExamEnrollment.exam_id == exam_uuid,
+                    ExamEnrollment.student_id == student_uuid,
                 )
                 .options(selectinload(ExamEnrollment.exam))
             )
@@ -102,8 +127,8 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
             events_result = await db.execute(
                 select(RawBehaviorEvent)
                 .where(
-                    RawBehaviorEvent.exam_id == UUID(exam_id),
-                    RawBehaviorEvent.student_id == UUID(student_id),
+                    RawBehaviorEvent.exam_id == exam_uuid,
+                    RawBehaviorEvent.student_id == student_uuid,
                 )
                 .order_by(RawBehaviorEvent.client_timestamp)
             )
@@ -133,8 +158,8 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
 
             try:
                 risk_score = await risk_engine.calculate_risk(
-                    exam_id=UUID(exam_id),
-                    student_id=UUID(student_id),
+                    exam_id=exam_uuid,
+                    student_id=student_uuid,
                     institution_id=exam.institution_id,
                     features=features,
                     exam_difficulty=exam.difficulty_level or "medium",
@@ -151,8 +176,8 @@ async def _recalculate_risk_background(exam_id: str, student_id: str):
                 return
 
             report = RiskReport(
-                exam_id=UUID(exam_id),
-                student_id=UUID(student_id),
+                exam_id=exam_uuid,
+                student_id=student_uuid,
                 enrollment_id=enrollment.id,
                 institution_id=exam.institution_id,
                 overall_score=risk_score.overall_score,
@@ -239,11 +264,18 @@ async def get_student_events(
     """
     Retrieve stored behavior events for a specific student and exam.
     """
+    try:
+        exam_uuid = uuid.UUID(exam_id)
+        student_uuid = uuid.UUID(student_id)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid exam_id or student_id")
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
     query = (
         select(RawBehaviorEvent)
         .where(
-            RawBehaviorEvent.exam_id == uuid.UUID(exam_id),
-            RawBehaviorEvent.student_id == uuid.UUID(student_id),
+            RawBehaviorEvent.exam_id == exam_uuid,
+            RawBehaviorEvent.student_id == student_uuid,
         )
         .order_by(desc(RawBehaviorEvent.client_timestamp))
         .offset(offset)

@@ -44,6 +44,7 @@ class EventType(str, Enum):
     KEY_UP = "key_up"
     KEY_COPY = "key_copy"
     KEY_PASTE = "key_paste"
+    KEY_CUT = "key_cut"
     WINDOW_BLUR = "window_blur"
     WINDOW_FOCUS = "window_focus"
     FULLSCREEN_EXIT = "fullscreen_exit"
@@ -61,6 +62,22 @@ class EventType(str, Enum):
     EXAM_SUBMIT = "exam_submit"
     REFRESH = "refresh"
     ALT_TAB = "alt_tab"
+
+
+# Single source of truth for "suspicious" behavior used by
+# teachers alert feed, timeline severity, and explainer findings.
+SUSPICIOUS_EVENT_TYPES: tuple[str, ...] = (
+    EventType.WINDOW_BLUR.value,
+    EventType.FULLSCREEN_EXIT.value,
+    EventType.DEVTOOLS_OPEN.value,
+    EventType.TAB_HIDDEN.value,
+    EventType.ALT_TAB.value,
+    EventType.KEY_PASTE.value,
+    EventType.KEY_COPY.value,
+    EventType.KEY_CUT.value,
+    EventType.REFRESH.value,
+    EventType.NAVIGATION.value,
+)
 
 
 class FeatureName(str, Enum):

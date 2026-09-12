@@ -234,7 +234,11 @@ export default function StudentLiveDetailPage() {
                     </span>
                   </div>
                   <span className="text-xs text-gray-500">
-                    {Math.round((Date.now() / 1000 - e.server_timestamp) / 60)}m ago
+                    {(() => {
+                      // server_timestamp is seconds, client_timestamp is ms
+                      const tsMs = e.client_timestamp ?? (e.server_timestamp ? e.server_timestamp * 1000 : Date.now());
+                      return `${Math.max(0, Math.round((Date.now() - tsMs) / 60000))}m ago`;
+                    })()}
                   </span>
                 </div>
               ))}

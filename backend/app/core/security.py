@@ -71,8 +71,16 @@ def verify_token(token: str, expected_type: str = "access") -> Optional[dict[str
     payload = decode_token(token)
     if not payload or payload.get("type") != expected_type:
         return None
-    if datetime.fromtimestamp(payload["exp"], tz=timezone.utc) < datetime.now(
-        timezone.utc
-    ):
+    exp = payload.get("exp")
+    if exp is None:
+        return None
+    try:
+        if isinstance(exp, datetime):
+            exp_dt = exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
+        else:
+            exp_dt = datetime.fromtimestamp(float(exp), tz=timezone.utc)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+    if exp_dt < datetime.now(timezone.utc):
         return None
     return payload

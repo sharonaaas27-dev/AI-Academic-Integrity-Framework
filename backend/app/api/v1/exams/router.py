@@ -102,7 +102,6 @@ async def start_exam(
         enrollment = ExamEnrollment(
             exam_id=exam_id,
             student_id=current_user.id,
-            institution_id=current_user.institution_id,
             status="active",
             started_at=datetime.now(timezone.utc),
         )
@@ -151,7 +150,11 @@ async def submit_exam(
     obtained_marks = 0.0
 
     for question_id, answer_text in answers_data.items():
-        q = questions.get(question_id)
+        try:
+            q_uuid = UUID(str(question_id))
+        except (ValueError, TypeError, AttributeError):
+            continue
+        q = questions.get(question_id) or questions.get(str(q_uuid))
         is_correct = None
         marks_obtained = 0.0
 
@@ -168,7 +171,7 @@ async def submit_exam(
 
         answer = Answer(
             enrollment_id=enrollment.id,
-            question_id=UUID(question_id),
+            question_id=q_uuid,
             answer_text=str(answer_text) if answer_text else None,
             is_correct=is_correct,
             marks_obtained=marks_obtained,
@@ -179,7 +182,7 @@ async def submit_exam(
             obtained_marks += marks_obtained
 
     # Update enrollment
-    enrollment.submitted_at = func.now()
+    enrollment.submitted_at = datetime.now(timezone.utc)
     enrollment.status = "completed"
     enrollment.time_taken_seconds = data.get("time_taken", 0)
     enrollment.score = obtained_marks

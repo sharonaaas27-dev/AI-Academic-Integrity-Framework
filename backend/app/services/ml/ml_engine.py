@@ -78,7 +78,7 @@ class BaseMLModel(ABC):
 class IsolationForestModel(BaseMLModel):
     async def load(self) -> None:
         path = Path(self.metadata.path)
-        if path.suffix == '.pkl':
+        if path.exists() and path.suffix in ('.pkl', '.joblib'):
             with open(path, 'rb') as f:
                 self.model = pickle.load(f)
         elif path.suffix == '.joblib':

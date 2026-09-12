@@ -174,13 +174,21 @@ async def get_exam_risk_overview(
     ),
 ):
     """Get risk overview for all students in an exam."""
+    # SQLite-compatible latest-per-student: order by time desc, dedupe in Python
+    # (Postgres DISTINCT ON is not portable).
     result = await db.execute(
         select(RiskReport)
         .where(RiskReport.exam_id == exam_id)
-        .distinct(RiskReport.student_id)
         .order_by(RiskReport.student_id, desc(RiskReport.generated_at))
     )
-    reports = result.scalars().all()
+    all_reports = result.scalars().all()
+    seen: set[str] = set()
+    reports = []
+    for r in all_reports:
+        key = str(r.student_id)
+        if key not in seen:
+            seen.add(key)
+            reports.append(r)
 
     return {
         "exam_id": str(exam_id),

@@ -230,7 +230,10 @@ async def register(
         password_hash=hash_password(request.password),
         first_name=request.first_name,
         last_name=request.last_name,
-        role=request.role,
+        # Public registration is always STUDENT; privileged roles must be
+        # created via admin endpoints. institution_id is accepted only if
+        # it references an existing institution, otherwise left unset.
+        role=UserRole.STUDENT,
         institution_id=request.institution_id,
     )
     db.add(user)

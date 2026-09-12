@@ -147,7 +147,9 @@ class RiskEngine:
                 logger.warning("No ML model available for prediction")
                 return None
 
-            feature_array = np.array([[features.get(f, 0.0) for f in sorted(features.keys())]])
+            # Use the model's own preprocess so feature order always matches
+            # training (metadata.feature_columns), never sorted(dict) order.
+            feature_array = model.preprocess(features)
             anomaly_scores = await model.predict(feature_array)
             probas = await model.predict_proba(feature_array)
 
@@ -226,13 +228,14 @@ class RiskEngine:
         beta: Optional[float] = None,
         gamma: Optional[float] = None,
     ) -> None:
-        """Update risk score weights."""
-        if alpha is not None:
-            self.alpha = alpha
-        if beta is not None:
-            self.beta = beta
-        if gamma is not None:
-            self.gamma = gamma
+        """Update risk score weights (must sum to ~1.0)."""
+        new_alpha = alpha if alpha is not None else self.alpha
+        new_beta = beta if beta is not None else self.beta
+        new_gamma = gamma if gamma is not None else self.gamma
+        total = new_alpha + new_beta + new_gamma
+        if abs(total - 1.0) > 0.01:
+            raise ValueError(f"Risk weights must sum to 1.0, got {total:.3f}")
+        self.alpha, self.beta, self.gamma = new_alpha, new_beta, new_gamma
         logger.info(
             "Risk weights updated: alpha=%.2f beta=%.2f gamma=%.2f",
             self.alpha, self.beta, self.gamma,

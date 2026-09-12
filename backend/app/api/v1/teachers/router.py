@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from ....core.database import get_db
 from ....api.deps import get_current_user, require_role
-from ....domain.enums import UserRole
+from ....domain.enums import UserRole, SUSPICIOUS_EVENT_TYPES
 from ....models.sqlalchemy.exam import Exam, Question, ExamEnrollment, Course, Answer
 from ....models.sqlalchemy.risk import RiskReport
 from ....models.sqlalchemy.behavior import RawBehaviorEvent
@@ -340,10 +340,7 @@ async def get_live_alerts(
         .where(
             RawBehaviorEvent.exam_id == exam_id,
             RawBehaviorEvent.server_timestamp >= cutoff,
-            RawBehaviorEvent.event_type.in_([
-                "window_blur", "fullscreen_exit", "devtools_open",
-                "tab_hidden", "alt_tab", "key_paste", "key_copy",
-            ]),
+            RawBehaviorEvent.event_type.in_(list(SUSPICIOUS_EVENT_TYPES)),
         )
         .order_by(desc(RawBehaviorEvent.client_timestamp))
         .limit(100)
@@ -359,7 +356,10 @@ async def get_live_alerts(
             "student_name": f"{student.first_name} {student.last_name}" if student else "Unknown",
             "event_type": event.event_type,
             "event_data": event.event_data,
+            # Timestamps: client_timestamp is ms (JS Date.now()), server is s.
             "timestamp": event.client_timestamp,
+            "timestamp_ms": event.client_timestamp,
+            "server_timestamp": event.server_timestamp,
         })
 
     return alerts
